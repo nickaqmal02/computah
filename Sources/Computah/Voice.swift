@@ -49,6 +49,8 @@ import ComputahCore
             URLQueryItem(name: "sample_rate", value: "16000"),
             URLQueryItem(name: "eager_eot_threshold", value: "0.5"),
             URLQueryItem(name: "eot_threshold", value: "0.7"),
+            // Custom keywords — bias transcription toward app names + tech terms
+            URLQueryItem(name: "keywords", value: "kitty:2,Spotify:2,Safari:2,Terminal:2,Deepgram:2,TypeSafe:2,Jev:2,Chrome:2,CotEditor:2,Alacritty:2,Notion:2,Obsidian:2,Figma:2,Zoom:2,Slack:2,Discord:2,Telegram:2,WhatsApp:2,VS Code:2,Brave:2,Hermes:2,Django:2,Python:2,Finder:2"),
         ]
         var request = URLRequest(url: components.url!)
         request.setValue("Token \(key)", forHTTPHeaderField: "Authorization")
