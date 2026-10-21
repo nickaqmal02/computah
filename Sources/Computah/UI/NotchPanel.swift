@@ -270,7 +270,7 @@ struct NotchHoverState {
     private let control = NSButton()
     private let more = NSButton()
     var debug: (() -> Void)?
-    private let accent = NSColor.white
+    private let accent = NSColor(srgbRed: 0.35, green: 0.78, blue: 1.0, alpha: 1)  // Jev cyan accent
     override init(frame: NSRect) {
         super.init(frame: frame)
         wantsLayer = true
@@ -284,7 +284,7 @@ struct NotchHoverState {
         more.target = self
         more.action = #selector(menuClicked)
         more.image = NSImage(systemSymbolName: "ellipsis", accessibilityDescription: "More options")
-        more.contentTintColor = .white
+        more.contentTintColor = NSColor(srgbRed: 0.35, green: 0.78, blue: 1.0, alpha: 1)  // Jev cyan
         more.setAccessibilityLabel("More options")
         addSubview(more)
         setAccessibilityElement(true)
@@ -412,7 +412,7 @@ struct NotchHoverState {
         NSRect(x: 48, y: (visibleBody.height - 22) / 2, width: max(10, bounds.width - 124), height: 22)
     }
     private var textAttributes: [NSAttributedString.Key: Any] {
-        [.font: NSFont.systemFont(ofSize: 15, weight: .medium), .foregroundColor: NSColor.white]
+        [.font: NSFont.systemFont(ofSize: 15, weight: .medium), .foregroundColor: NSColor(srgbRed: 0.35, green: 0.78, blue: 1.0, alpha: 1)]  // Jev cyan text
     }
     private func tick() {
         let now = ProcessInfo.processInfo.systemUptime
@@ -445,7 +445,7 @@ struct NotchHoverState {
         context.setBlendMode(.copy)
         // Only the shaped panel is opaque; the menu-bar wings stay transparent.
         // Background opacity never follows the content fade or system glass settings.
-        context.setFillColor(CGColor(srgbRed: 0, green: 0, blue: 0, alpha: 1))
+        context.setFillColor(CGColor(srgbRed: 0.06, green: 0.08, blue: 0.12, alpha: 1))  // Jev dark navy
         context.addPath(shape)
         context.fillPath()
         context.restoreGState()
@@ -475,7 +475,7 @@ struct NotchHoverState {
                 : listening ? "Go ahead, I’m listening…" : "Control + Option to begin"
             let text = transcript.isEmpty ? placeholder : transcript
             var attributes = textAttributes
-            if transcript.isEmpty { attributes[.foregroundColor] = NSColor(white: 0.6, alpha: 1) }
+            if transcript.isEmpty { attributes[.foregroundColor] = NSColor(srgbRed: 0.35, green: 0.78, blue: 1.0, alpha: 0.5) }  // Jev cyan dimmed
             (text as NSString).draw(
                 at: NSPoint(x: textWindow.minX - (transcript.isEmpty ? 0 : offset), y: textWindow.minY + 2),
                 withAttributes: attributes)
