@@ -56,8 +56,8 @@ import Foundation
     }
 }
 
-// TTS using edge-tts via subprocess (free, good quality)
-// Falls back to macOS 'say' command if edge-tts fails
+// TTS using Deepgram Aura (better quality than edge-tts)
+// Falls back to macOS 'say' command if Deepgram fails
 @MainActor final class VoiceReply {
     func speak(_ text: String) {
         // Clean text for TTS
@@ -70,44 +70,83 @@ import Foundation
 
         guard !clean.isEmpty else { return }
 
-        // Try edge-tts first (better quality)
-        let tempPath = "/tmp/computah_tts.mp3"
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: "/usr/bin/env")
-        process.arguments = ["edge-tts", "--voice", "en-US-GuyNeural", "--rate", "+0%", "--text", clean, "--write-media", tempPath]
-
-        // Run edge-tts in background, then play
+        // Run TTS in background thread
         DispatchQueue.global(qos: .userInitiated).async {
-            do {
-                try process.run()
-                process.waitUntilExit()
+            self.speakWithDeepgram(clean)
+        }
+    }
 
-                if process.terminationStatus == 0, FileManager.default.fileExists(atPath: tempPath) {
-                    // Play with afplay
-                    let play = Process()
-                    play.executableURL = URL(fileURLWithPath: "/usr/bin/afplay")
-                    play.arguments = [tempPath]
-                    try play.run()
-                    play.waitUntilExit()
-                    try? FileManager.default.removeItem(atPath: tempPath)
-                } else {
-                    // Fallback: macOS 'say' command
-                    self.speakWithSay(clean)
-                }
-            } catch {
-                self.speakWithSay(clean)
+    private func speakWithDeepgram(_ text: String) {
+        // Read Deepgram key from .env
+        let envPath = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent("degree/PersonalAgentic/computah/.env")
+
+        guard let envContent = try? String(contentsOf: envPath, encoding: .utf8) else {
+            self.speakWithSay(text)
+            return
+        }
+
+        var apiKey = ""
+        for line in envContent.components(separatedBy: .newlines) {
+            let parts = line.split(separator: "=", maxSplits: 1)
+            if parts.count == 2, parts[0].trimmingCharacters(in: .whitespaces) == "DEEPGRAM_API_KEY" {
+                apiKey = parts[1].trimmingCharacters(in: .whitespacesAndNewlines)
+                break
             }
+        }
+
+        guard !apiKey.isEmpty else {
+            self.speakWithSay(text)
+            return
+        }
+
+        // Call Deepgram TTS API
+        let urlString = "https://api.deepgram.com/v1/speak?model=aura-2-thalia-en"
+        guard let url = URL(string: urlString) else {
+            self.speakWithSay(text)
+            return
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("Token \(apiKey)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.timeoutInterval = 15
+
+        let body: [String: Any] = ["text": text]
+        request.httpBody = try? JSONSerialization.data(withJSONObject: body)
+
+        let semaphore = DispatchSemaphore(value: 0)
+        var audioData: Data?
+
+        let task = URLSession.shared.dataTask(with: request) { data, response, error in
+            if let data = data, let http = response as? HTTPURLResponse, http.statusCode == 200 {
+                audioData = data
+            }
+            semaphore.signal()
+        }
+        task.resume()
+        semaphore.wait()
+
+        let tempPath = "/tmp/computah_deepgram_tts.mp3"
+        if let audioData = audioData {
+            try? audioData.write(to: URL(fileURLWithPath: tempPath))
+            let play = Process()
+            play.executableURL = URL(fileURLWithPath: "/usr/bin/afplay")
+            play.arguments = [tempPath]
+            try? play.run()
+            play.waitUntilExit()
+            try? FileManager.default.removeItem(atPath: tempPath)
+        } else {
+            self.speakWithSay(text)
         }
     }
 
     private func speakWithSay(_ text: String) {
-        nonisolated(unsafe) func runSay() {
-            let process = Process()
-            process.executableURL = URL(fileURLWithPath: "/usr/bin/say")
-            process.arguments = ["-v", "Daniel", text]
-            try? process.run()
-            process.waitUntilExit()
-        }
-        runSay()
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: "/usr/bin/say")
+        process.arguments = ["-v", "Daniel", text]
+        try? process.run()
+        process.waitUntilExit()
     }
 }
