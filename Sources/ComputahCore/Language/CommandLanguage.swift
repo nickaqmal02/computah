@@ -55,7 +55,7 @@ struct SourceToken {
 
 public enum GoalRelationship: String, Codable, CaseIterable { case replace, revise, resume, append, cancel, unclear }
 
-enum CommandRoute: String { case application, navigation, controls }
+enum CommandRoute: String { case application, navigation, controls, search }
 enum ValueFormat: String, CaseIterable { case absent, literal, address, number, percent }
 
 struct InterpretedCommand {
@@ -190,7 +190,7 @@ struct CommandLanguage {
             JevOption(id: "reobserve", description: LanguagePrompts.text("action_reobserve")),
             JevOption(id: "already_satisfied", description: LanguagePrompts.text("action_already_satisfied"))]
         var questions = (fixedClause == nil ? [question("boundary", ends)] : []) + [
-            question("route", [CommandRoute.application, .navigation, .controls].map {
+            question("route", [CommandRoute.application, .navigation, .controls, .search].map {
                 JevOption(id: $0.rawValue, description: LanguagePrompts.text("route_" + $0.rawValue)) }),
             ] + valueQuestions() + [
             question("application", appOptions.isEmpty ? [JevOption(id: "unavailable", description: "No application catalog available")] : appOptions),
@@ -287,7 +287,7 @@ struct CommandLanguage {
             } ?? true
         } == true)
         var actionID: String? = route == nil ? nil : needsActivation ? appIndex.map { "app\($0)" } :
-            route == .navigation ? "navigate" : answers.answer("action")
+            route == .navigation ? "navigate" : route == .search ? "search" : answers.answer("action")
         var valueAnswers = ValueSelection(answers)
         var conditionalState = state
         conditionalState["active_instruction"] = SensitiveText.redact(source, range: NSRange(location: clause.startUTF16, length: clause.endUTF16 - clause.startUTF16))
@@ -336,7 +336,7 @@ struct CommandLanguage {
         var valueRange: NSRange?
         var value: String?
         let selectedControl = controls.first { $0.id == actionID }
-        let requiresValue = route == .navigation || selectedControl.map { [.typeText, .replaceText, .setNumber].contains($0.operation) } == true
+        let requiresValue = route == .navigation || route == .search || selectedControl.map { [.typeText, .replaceText, .setNumber].contains($0.operation) } == true
         if requiresValue {
             if valueAnswers.format == nil || valueAnswers.format == ValueFormat.absent.rawValue {
                 conditionalState["selected_target"] = selectedControl?.description ?? "Navigate to requested address"

@@ -215,6 +215,20 @@ public struct CommandEngine {
             }
             return prepared(candidate: candidate)
         }
+        // Search route — open a web search in the default browser
+        if interpreted.route == .search {
+            let start = Date()
+            let resolved = try await language.resolveValue(interpreted)
+            modelSeconds += Date().timeIntervalSince(start)
+            interpreted = resolved
+            guard let query = interpreted.value, !query.isEmpty else {
+                return prepared(status: "What should I search for?")
+            }
+            // URL-encode the query and build a Google search URL
+            let encoded = query.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? query
+            let searchURL = URL(string: "https://www.google.com/search?q=\(encoded)")!
+            return prepared(navigation: searchURL, description: "Search \"\(query)\"")
+        }
         let start = Date()
         let resolved = try await language.resolveValue(interpreted)
         modelSeconds += Date().timeIntervalSince(start)
