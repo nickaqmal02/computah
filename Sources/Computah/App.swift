@@ -12,6 +12,9 @@ import ComputahCore
     var status = "Ready"
     var recentRuns: [RunRecord] = []
     var running = false
+    let chatBrain = ChatBrain()
+    let voiceReply = VoiceReply()
+    var isReplying = false
     lazy var coordinator = CommandCoordinator(engine: engine, auditLimit: diagnosticAuditLimit)
     var typedTurnID = UUID().uuidString
     var appBeforeReview: NSRunningApplication?
@@ -34,6 +37,14 @@ import ComputahCore
                 observation: last?.after.isEmpty == false ? last?.after : last?.before,
                 action: result.events.map(\.action).joined(separator: " → "), requests: result.requests,
                 inputTokens: result.inputTokens, elapsed: result.elapsed, recordedAt: Date(), events: result.events, complete: result.complete))
+
+            // If no action was taken (no tool matched), send to GLM for conversational reply
+            if result.events.isEmpty || !result.complete {
+                let lowerStatus = result.status.lowercased()
+                if lowerStatus.contains("no matching") || lowerStatus.contains("no action") || lowerStatus.contains("incomplete") || result.events.isEmpty {
+                    Task { await self.handleChatReply(result.command) }
+                }
+            }
         }
         coordinator.beforeObservation = { [weak self] permit in
             guard let self, NSWorkspace.shared.frontmostApplication?.processIdentifier == ProcessInfo.processInfo.processIdentifier,
@@ -45,6 +56,15 @@ import ComputahCore
         listeningSounds = ListeningSounds()
         notch.toggle = { [weak self] in self?.toggleVoice() }
         notch.debug = { [weak self] in self?.showReview() }
+
+        // Wire chat brain — GLM replies show in notch + TTS
+        chatBrain.onReply = { [weak self] reply in
+            guard let self else { return }
+            self.transcript = "💬 \(reply)"
+            self.refresh()
+            self.voiceReply.speak(reply)
+        }
+
         connectVoiceCallbacks(source: .microphone)
         shortcut = ListenShortcut { [weak self] in self?.toggleVoice() }
         notch.show()
@@ -121,6 +141,18 @@ import ComputahCore
                       needsSetup: credential("DEEPGRAM_API_KEY") == nil || credential("TYPESAFE_API_KEY") == nil)
         debugState.update(status: status, transcript: transcript,
                           listening: voice.isListening, running: running)
+    }
+
+    func handleChatReply(_ userText: String) async {
+        guard !isReplying else { return }
+        isReplying = true
+        defer { isReplying = false }
+
+        guard let apiKey = credential("HERMES_CUSTOM_NICKY9TAIL_API_KEY") else { return }
+        let baseURL = "https://rootsys.cloud/v1"
+        let model = "glm-5.3"
+
+        await chatBrain.reply(to: userText, apiKey: apiKey, baseURL: baseURL, model: model)
     }
 
     func applicationWillTerminate(_ notification: Notification) {
