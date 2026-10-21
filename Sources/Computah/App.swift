@@ -39,9 +39,10 @@ import ComputahCore
                 inputTokens: result.inputTokens, elapsed: result.elapsed, recordedAt: Date(), events: result.events, complete: result.complete))
 
             // If no action was taken (no tool matched), send to GLM for conversational reply
-            if result.events.isEmpty || !result.complete {
+            let noActionTaken = result.events.allSatisfy { $0.action.lowercased() == "no input" } || result.events.isEmpty
+            if noActionTaken || !result.complete {
                 let lowerStatus = result.status.lowercased()
-                if lowerStatus.contains("no matching") || lowerStatus.contains("no action") || lowerStatus.contains("incomplete") || result.events.isEmpty {
+                if lowerStatus.contains("no matching") || lowerStatus.contains("no action") || lowerStatus.contains("incomplete") || lowerStatus.contains("no clear") || lowerStatus.contains("unclear") || noActionTaken {
                     Task { await self.handleChatReply(result.command) }
                 }
             }
